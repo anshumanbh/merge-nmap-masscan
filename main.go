@@ -263,6 +263,7 @@ func main() {
 		}
 
 		found = false // setting this back to false for the next line in the masscan file
+		fmt.Println("=============")
 
 	}
 
