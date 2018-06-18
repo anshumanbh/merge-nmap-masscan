@@ -180,7 +180,7 @@ func main() {
 	// If it does not, we have found a new record found by masscan, which we need to merge with the existing nmap file.
 
 	for msfScanner.Scan() { //looping over each line of the masscan file
-
+		fmt.Println("=======================================")
 		msline := strings.Split(msfScanner.Text(), ",")
 		fmt.Println(msline)
 
@@ -263,7 +263,6 @@ func main() {
 		}
 
 		found = false // setting this back to false for the next line in the masscan file
-		fmt.Println("=============")
 
 	}
 
@@ -273,5 +272,6 @@ func main() {
 		log.Fatalf("Couldn't write to the out file: %v", err)
 	}
 
+	fmt.Println("=======================================")
 	fmt.Println("Results saved to: " + cfg.outFile)
 }
