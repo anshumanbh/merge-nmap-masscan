@@ -1,0 +1,5 @@
+Hostname,IPAddress,Port,Protocol,Servicename,Servicestate
+anshumanbhartiya.com,104.198.14.52,80,tcp,tcpwrapped,open
+anshumanbhartiya.com,104.198.14.52,443,tcp,tcpwrapped,open
+github.anshumanbhartiya.com,185.199.110.153,80,tcp,tcpwrapped,open
+github.anshumanbhartiya.com,185.199.110.153,443,tcp,tcpwrapped,open
