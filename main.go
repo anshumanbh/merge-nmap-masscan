@@ -33,7 +33,7 @@ var (
 	cfg   config
 	ps    []portscan
 	found bool
-	chost string
+	m     map[string]string
 )
 
 func loadConfig() {
@@ -75,13 +75,16 @@ func ensureFilePathExists(filepath string) error {
 		fsize = s
 	}
 
-	log.Println("File exists:", value)
-	log.Println("File size:", fsize)
+	log.Println(filepath+" File exists:", value)
+	log.Println(filepath+" File size:", fsize)
 
 	return nil
 }
 
 func loopnmapfile(nmapfile string) error {
+
+	m = make(map[string]string)
+
 	ns, err := os.Open(nmapfile)
 	if err != nil {
 		log.Printf("Couldn't open the NMAP Scan file: %v", err)
@@ -93,6 +96,8 @@ func loopnmapfile(nmapfile string) error {
 	nsfScanner.Split(bufio.ScanLines) // splitting at each line
 	nsfcount := 0
 
+	fmt.Println("\nCreating a map of IP=Host from the NMAP scan file\n")
+
 	for nsfScanner.Scan() {
 		if nsfcount == 0 {
 			nsfcount++ //don't need the first line, increment the counter
@@ -103,6 +108,14 @@ func loopnmapfile(nmapfile string) error {
 				log.Printf("Couldn't convert port string to int: %v", err)
 				return err
 			}
+
+			_, ok := m[nsline[1]]
+			if ok {
+				// If an IP already exists, it prolly has a host as well
+			} else {
+				m[nsline[1]] = nsline[0] // If not, set the ip=host key/value pair
+			}
+
 			p := portscan{
 				Hostname:     nsline[0],
 				IPAddress:    nsline[1],
@@ -114,6 +127,8 @@ func loopnmapfile(nmapfile string) error {
 			ps = append(ps, p)
 		}
 	}
+	fmt.Printf("Map: \n%s\n", m)
+	fmt.Printf("\nPortscan struct formed from the NMAP scan file only: \n%v\n", ps)
 
 	return nil
 }
@@ -150,7 +165,7 @@ func main() {
 
 	err = loopnmapfile(cfg.nmapFile) // need to loop through the nmap scan file and create a new array of portscans from that so that we can just keep appending anything new to that list
 	if err != nil {
-		log.Fatalf("Couldn't loop the nmap scan file: ", err)
+		log.Fatalf("Couldn't loop the nmap scan file: %v", err)
 	}
 
 	// need to do some sed magic on the masscan file to get a CSV from the Masscan generated list file. stored at /tmp/masscantemp.txt
@@ -160,7 +175,7 @@ func main() {
 	masscanCmd.Stderr = &masscanStderr
 	err = masscanCmd.Run()
 	if err != nil {
-		log.Fatalf("Couldn't run the sed command for Masscan Scan file: ", err)
+		log.Fatalf("Couldn't run the sed command for Masscan Scan file: %v", err)
 	}
 
 	// now scanning the temp masscan file per line and splitting on , just like the nmap file. no need to skip the first line though
@@ -182,7 +197,8 @@ func main() {
 	for msfScanner.Scan() { //looping over each line of the masscan file
 		fmt.Println("=======================================")
 		msline := strings.Split(msfScanner.Text(), ",")
-		fmt.Println(msline)
+		fmt.Printf("\nLine of the sorted Masscan file: %v\n", msline)
+		fmt.Println("Now comparing this line with each line of the NMAP Scan file..\n")
 
 		mip := msline[3]
 		mstate := msline[0]
@@ -201,8 +217,6 @@ func main() {
 
 		for nmapScanner.Scan() { // for each line from the masscan file, looping over all lines of the nmap file to find a possible match
 
-			chost = ""
-
 			if ncount == 0 {
 				ncount++ //don't need the first line, increment the counter
 			} else {
@@ -210,24 +224,18 @@ func main() {
 				nsline := strings.Split(nmapScanner.Text(), ",")
 				fmt.Println(nsline)
 
-				nhost := nsline[0]
 				nip := nsline[1]
 				nport := nsline[2]
 				nstate := nsline[5]
 				nprotocol := nsline[3]
 
 				if mip == nip && mstate == nstate && mport == nport && mprotocol == nprotocol {
-					fmt.Println("exact match found..")
+					fmt.Println("exact match found..no need to add anything!")
 					found = true
 					break // need to stop scanning any more lines from the nmap file
 				} else {
 					fmt.Println("match not found")
 					found = false
-
-					if mip == nip { // need to check if the IP is the same in this run so that domain could be copied over
-						chost = nhost
-					}
-
 					continue // match not found so need to continue iterating through the rest of the lines in the nmap file
 				}
 
@@ -243,26 +251,22 @@ func main() {
 				log.Fatalf("Couldn't convert masscan port from string to int: %v", err)
 			}
 
-			var h string
-
-			if chost != "" {
-				h = chost
-			} else {
-				h = "NA"
-			}
-
 			foo := portscan{
-				Hostname:     h,
+				Hostname:     m[mip],
 				IPAddress:    mip,
 				Port:         p,
 				Protocol:     mprotocol,
-				Servicename:  "NA",
+				Servicename:  "NA", //masscan doesn't have the service name unfortunately :(
 				Servicestate: mstate,
 			}
 			ps = append(ps, foo)
 		}
 
-		found = false // setting this back to false for the next line in the masscan file
+		fmt.Println("Since no match found, adding the masscan entry into the portscan struct..\n")
+		fmt.Println(ps)
+
+		// setting back the defaults
+		found = false
 
 	}
 
